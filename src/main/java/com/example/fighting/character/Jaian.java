@@ -1,5 +1,7 @@
-package com.example.fighting;
+package com.example.fighting.character;
 
+import com.example.fighting.HelloApplication;
+import com.example.fighting.Position;
 import javafx.scene.image.Image;
 
 import java.util.Objects;

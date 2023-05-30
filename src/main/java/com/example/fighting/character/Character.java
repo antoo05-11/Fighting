@@ -1,5 +1,6 @@
-package com.example.fighting;
+package com.example.fighting.character;
 
+import com.example.fighting.Position;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.image.Image;
@@ -13,15 +14,15 @@ public abstract class Character {
     private Image image;
     private Position pos;
 
-    protected double health;
+    public double health;
     protected double maxHealth = 1000;
-    protected double damage;
+    public double damage;
 
     protected double radiusRange = 100;
 
     public enum Status {
         NONE,
-        FIRING
+        FIRING,
     }
 
     private boolean allowedToFire = false;
@@ -33,6 +34,14 @@ public abstract class Character {
 
     public boolean isAbleToFire() {
         return allowedToFire;
+    }
+
+    public void configure(Image image, Position pos) {
+        this.image = image;
+        this.pos = pos;
+    }
+
+    public Character() {
     }
 
     public Character(Image image, Position pos) {
@@ -58,9 +67,19 @@ public abstract class Character {
 
     public void render(GraphicsContext gc) {
         gc.setFill(Color.GREEN);
-        gc.strokeRect(pos.getX(), pos.getY()-15, image.getWidth(), 10);
-        gc.fillRect(pos.getX(), pos.getY()-15, image.getWidth() * health / maxHealth, 10);
+        gc.strokeRect(pos.getX(), pos.getY() - 15, image.getWidth(), 10);
+        gc.fillRect(pos.getX(), pos.getY() - 15, image.getWidth() * health / maxHealth, 10);
         gc.drawImage(image, pos.getX(), pos.getY());
+
+        if (isMoving) {
+            pos.translate(desPos, 3);
+            if (desPos.equals(currentPos)) {
+                desPos = null;
+                currentPos = null;
+                isMoving = false;
+            }
+        }
+
         if (status == Status.FIRING) {
             gc.setStroke(Color.BLACK);
             gc.setLineWidth(2);
@@ -87,6 +106,16 @@ public abstract class Character {
         fireLineEndPos = opponent.getCenterPos().clone();
         fireLineStartPos = getCenterPos().clone();
         status = Status.FIRING;
+    }
+
+    boolean isMoving = false;
+    Position currentPos = null;
+    Position desPos = null;
+
+    public void move(Canvas canvas, Position desPos) {
+        this.desPos = desPos;
+        currentPos = pos.clone();
+        isMoving = true;
     }
 
     public void move(Canvas canvas, Position.Direction direction, double delta) {

@@ -89,25 +89,24 @@ public class Position implements Cloneable {
     }
 
     public void translate(Position endPos, double fireSpeed) {
-        if(Math.abs(endPos.x-x) < fireSpeed) x = endPos.x;
+        if (Math.abs(endPos.x - x) < fireSpeed) x = endPos.x;
         if (x == endPos.x) {
             if (y > endPos.y) {
                 this.translate(Direction.UP, fireSpeed);
             } else if (y < endPos.y) {
                 this.translate(Direction.DOWN, fireSpeed);
             }
-        }
-        else {
+        } else {
             double oldX = x;
-            if(x < endPos.x) {
+            if (x < endPos.x) {
                 this.translate(Direction.RIGHT, fireSpeed);
             }
-            if(x > endPos.x) {
+            if (x > endPos.x) {
                 this.translate(Direction.LEFT, fireSpeed);
             }
-            y = y + (endPos.y - y)*(x - oldX) / (endPos.x - oldX);
-            if(Math.abs(endPos.y-y) < fireSpeed) y = endPos.y;
+            y = y + (endPos.y - y) * (x - oldX) / (endPos.x - oldX);
         }
+        if (Math.abs(endPos.y - y) < fireSpeed) y = endPos.y;
     }
 
     @Override

@@ -1,16 +1,111 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
+<?import de.jensd.fx.glyphs.fontawesome.FontAwesomeIconView?>
 <?import javafx.geometry.Insets?>
-<?import javafx.scene.control.Label?>
-<?import javafx.scene.layout.VBox?>
-
 <?import javafx.scene.control.Button?>
-<VBox alignment="CENTER" spacing="20.0" xmlns:fx="http://javafx.com/fxml"
-      fx:controller="com.example.fighting.HelloController">
-    <padding>
-        <Insets bottom="20.0" left="20.0" right="20.0" top="20.0"/>
-    </padding>
+<?import javafx.scene.control.Label?>
+<?import javafx.scene.control.ProgressIndicator?>
+<?import javafx.scene.control.ScrollPane?>
+<?import javafx.scene.control.TextField?>
+<?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.StackPane?>
+<?import javafx.scene.layout.VBox?>
+<?import javafx.scene.text.Font?>
 
-    <Label fx:id="welcomeText"/>
-    <Button text="Hello!" onAction="#onHelloButtonClick"/>
-</VBox>
+<StackPane prefHeight="600.0" prefWidth="900.0" stylesheets="@style.css" xmlns="http://javafx.com/javafx/19" xmlns:fx="http://javafx.com/fxml/1" fx:controller="com.example.fighting.MainSceneController">
+    <children>
+        <HBox prefHeight="100.0" prefWidth="200.0">
+            <children>
+                <VBox alignment="TOP_CENTER" prefHeight="600.0" prefWidth="239.0" spacing="10.0" styleClass="left-pane">
+                    <children>
+                        <Label text="FIGHTING" textFill="#009dff">
+                            <font>
+                                <Font name="System Bold" size="26.0" />
+                            </font>
+                        </Label>
+                        <VBox alignment="TOP_CENTER" spacing="10.0">
+                            <children>
+                                <Label styleClass="top-id-label" text="Your ID" textFill="#009dff" />
+                                <Label fx:id="myIDLabel" alignment="CENTER" prefWidth="44.0" styleClass="id-label" text="..." textFill="#009dff" />
+                            </children>
+                        </VBox>
+                        <TextField fx:id="usernameTextField" focusTraversable="false" prefHeight="26.0" prefWidth="206.0" promptText="Your name">
+                            <VBox.margin>
+                                <Insets left="10.0" right="10.0" />
+                            </VBox.margin>
+                            <font>
+                                <Font size="15.0" />
+                            </font>
+                        </TextField>
+                        <Button fx:id="playButton" focusTraversable="false" mnemonicParsing="false" prefHeight="26.0" prefWidth="64.0" text="Play" />
+                        <VBox alignment="TOP_CENTER" spacing="10.0">
+                            <children>
+                                <Label styleClass="top-id-label" text="Opponent's ID" />
+                                <Label fx:id="opponentIDLabel" alignment="CENTER" minWidth="100.0" prefHeight="22.0" prefWidth="75.0" styleClass="id-label" text="..." />
+                                <Label fx:id="opponentUsernameLabel" alignment="CENTER" minWidth="200.0" prefHeight="27.0" prefWidth="155.0">
+                                    <font>
+                                        <Font size="18.0" />
+                                    </font>
+                                </Label>
+                            </children>
+                        </VBox>
+                        <Label fx:id="resultLabel" alignment="CENTER" prefHeight="42.0" prefWidth="133.0" text="PLAYING" textFill="#009dff">
+                            <font>
+                                <Font size="24.0" />
+                            </font>
+                        </Label>
+                        <VBox alignment="TOP_CENTER">
+                            <children>
+                                <Label fx:id="onlineNumberLabel" text="Online: 0">
+                                    <font>
+                                        <Font size="13.0" />
+                                    </font>
+                                </Label>
+                                <Label fx:id="readyNumberLabel" text="Ready: 0">
+                                    <font>
+                                        <Font size="13.0" />
+                                    </font>
+                                </Label>
+                            </children>
+                        </VBox>
+                        <Label fx:id="loadingLabel" alignment="CENTER" minWidth="200.0" prefHeight="34.0" prefWidth="139.0" text="Connecting server..." textFill="#009dff">
+                            <graphic>
+                                <ProgressIndicator fx:id="progressIndicator" prefHeight="27.0" prefWidth="31.0" />
+                            </graphic>
+                            <font>
+                                <Font name="System Bold" size="12.0" />
+                            </font>
+                        </Label>
+                        <VBox>
+                            <children>
+                                <ScrollPane fx:id="boxChatScrollPane" fitToHeight="true" fitToWidth="true" focusTraversable="false" prefHeight="159.0" prefWidth="238.0" styleClass="chat-box-scroll-pane">
+                                    <content>
+                                        <VBox fx:id="chatBox" prefHeight="165.0" prefWidth="222.0" styleClass="chat-box">
+                                            <padding>
+                                                <Insets left="10.0" />
+                                            </padding>
+                                        </VBox>
+                                    </content>
+                                </ScrollPane>
+                                <HBox>
+                                    <children>
+                                        <TextField fx:id="chatTextField" prefHeight="27.0" prefWidth="210.0" promptText="Chat something..." styleClass="chat-text-field" HBox.hgrow="ALWAYS" />
+                                        <Button fx:id="sendMessageButton" contentDisplay="GRAPHIC_ONLY" mnemonicParsing="false" styleClass="send-button" text="Button">
+                                            <graphic>
+                                                <FontAwesomeIconView glyphName="SEND" />
+                                            </graphic>
+                                        </Button>
+                                    </children>
+                                </HBox>
+                            </children>
+                        </VBox>
+                    </children>
+                    <padding>
+                        <Insets top="20.0" />
+                    </padding>
+                </VBox>
+                <ScrollPane fx:id="mainView" prefHeight="454.0" prefWidth="174.0" HBox.hgrow="ALWAYS" />
+            </children>
+        </HBox>
+    </children>
+</StackPane>

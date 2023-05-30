@@ -1,0 +1,14 @@
+sql-server {
+    user:MRkPzdU0Jjzpq8HhLWY1
+    password:MRkPzdU0Jjzpq8HhLWY1
+    database:b9z5evsse65g8b1l5vgs
+    server:u2n3pkuyuobnpxzf:MRkPzdU0Jjzpq8HhLWY1@b9z5evsse65g8b1l5vgs-mysql.services.clever-cloud.com
+    port:3306
+}
+localhost {
+    user:root
+    password:
+    database:fighting_game
+    server:localhost
+    port:3306
+}

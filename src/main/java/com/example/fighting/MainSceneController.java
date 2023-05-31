@@ -445,4 +445,68 @@ public class MainSceneController implements Initializable {
             }
         }
     }
+
+    void keepServerStatus() {
+        Thread showAliveThread = new Thread(() -> {
+            while (true) {
+                String query = String.format("update users set showAliveCode = '%d' where userID = %d", (int) (Math.random() * 10000), userID);
+                sqlConnection.updateQuery(query);
+                try {
+                    Thread.sleep(50);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        });
+        showAliveThread.start();
+
+        Thread thread = new Thread(() -> {
+            Hashtable<Integer, Integer> idList = new Hashtable<>();
+
+            while (true) {
+                String query = String.format("select * from users where status != 'offline' and userID <= %d;", userID);
+
+                try {
+                    ResultSet resultSet = sqlConnection.getDataQuery(query);
+                    int minID = 100000;
+                    List<Integer> removeList = new ArrayList<>();
+                    while (resultSet.next()) {
+                        int currentID = resultSet.getInt("userID");
+                        if (currentID != userID) {
+                            if (idList.get(currentID) != null && idList.get(currentID) == resultSet.getInt("showALiveCode")) {
+                                idList.remove(currentID);
+                                removeList.add(currentID);
+                            } else idList.put(currentID, resultSet.getInt("showAliveCode"));
+                        }
+                        if (minID > currentID) minID = currentID;
+                    }
+
+                    if (minID == userID) {
+                        System.out.println("i a administrator!");
+                    } else {
+                        for (Integer integer : removeList) {
+                            query = String.format("update users set status = 'offline' where userID = %d;", integer);
+                            sqlConnection.updateQuery(query);
+                        }
+                    }
+
+                } catch (SQLException e) {
+                    throw new RuntimeException(e);
+                }
+
+                try {
+                    Thread.sleep(200);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        });
+
+        try {
+            Thread.sleep(50);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+        thread.start();
+    }
 }

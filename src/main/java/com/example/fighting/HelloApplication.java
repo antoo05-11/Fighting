@@ -53,7 +53,10 @@ public class HelloApplication extends Application {
             } catch (SQLException e) {
                 throw new RuntimeException(e);
             }
-        }, () -> runTask(controller::keepConnection, null, null, null), controller.getLoadingLabel(), null);
+        }, () -> {
+            controller.keepServerStatus();
+            runTask(controller::keepConnection, null, null, null);
+        }, controller.getLoadingLabel(), null);
 
 
         stage.show();

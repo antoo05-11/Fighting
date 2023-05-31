@@ -31,6 +31,7 @@ import javafx.util.Duration;
 import java.net.URL;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.LocalDateTime;
 import java.util.*;
 
 public class MainSceneController implements Initializable {
@@ -153,6 +154,7 @@ public class MainSceneController implements Initializable {
         this.scene = scene;
     }
 
+
     void initialSetup() {
         GraphicsContext gc = canvas.getGraphicsContext2D();
 
@@ -208,8 +210,16 @@ public class MainSceneController implements Initializable {
                     if (fireBreakTime1.getStatus() != Animation.Status.RUNNING) {
                         fireBreakTime1.play();
                         if (player.insideRange(opponent)) {
-                            opponent.health -= player.damage;
                             player.fire(opponent);
+                            Thread updateAttackThread = new Thread(()->{
+                                String query = String.format("insert into attackDetails (matchID, attackUserID, attackedUserID) VALUES (%d,%d,%d)",matchID,userID,opponentID);
+                                sqlConnection.updateQuery(query);
+
+                                query = String.format("update matchDetails set health = health - %s where userID = %d",
+                                        String.valueOf(player.damage).replace(',','.'), opponentID);
+                                sqlConnection.updateQuery(query);
+                            });
+                            updateAttackThread.start();
                         }
                     }
                 }
@@ -400,6 +410,23 @@ public class MainSceneController implements Initializable {
             }
         }, null, null, null);
 
+        Thread updateAttackedThread = new Thread(() -> {
+            while (matchID != -1) {
+                String query = String.format("select * from attackDetails where matchID = %d and attackedUserID = %d and resolved = 0", matchID, userID);
+                ResultSet resultSet = sqlConnection.getDataQuery(query);
+                try {
+                    while (resultSet.next()) {
+                        if (resultSet.getInt("attackUserID") == opponentID)
+                            opponent.fire(player);
+                        query = String.format("update attackDetails set resolved = 1 where attackID = %d", resultSet.getInt("attackID"));
+                        sqlConnection.updateQuery(query);
+                    }
+                } catch (SQLException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        });
+        updateAttackedThread.start();
     }
 
     void keepConnection() {
@@ -446,13 +473,15 @@ public class MainSceneController implements Initializable {
         }
     }
 
+    BooleanProperty adminRight = new SimpleBooleanProperty(false);
+
     void keepServerStatus() {
         Thread showAliveThread = new Thread(() -> {
             while (true) {
                 String query = String.format("update users set showAliveCode = '%d' where userID = %d", (int) (Math.random() * 10000), userID);
                 sqlConnection.updateQuery(query);
                 try {
-                    Thread.sleep(50);
+                    Thread.sleep(200);
                 } catch (InterruptedException e) {
                     throw new RuntimeException(e);
                 }
@@ -460,11 +489,11 @@ public class MainSceneController implements Initializable {
         });
         showAliveThread.start();
 
-        Thread thread = new Thread(() -> {
+        Thread checkServerStatusThread = new Thread(() -> {
             Hashtable<Integer, Integer> idList = new Hashtable<>();
 
-            while (true) {
-                String query = String.format("select * from users where status != 'offline' and userID <= %d;", userID);
+            while (!adminRight.get()) {
+                String query = "select * from users where status != 'offline';";
 
                 try {
                     ResultSet resultSet = sqlConnection.getDataQuery(query);
@@ -483,6 +512,7 @@ public class MainSceneController implements Initializable {
 
                     if (minID == userID) {
                         System.out.println("i a administrator!");
+                        adminRight.setValue(true);
                     } else {
                         for (Integer integer : removeList) {
                             query = String.format("update users set status = 'offline' where userID = %d;", integer);
@@ -495,18 +525,128 @@ public class MainSceneController implements Initializable {
                 }
 
                 try {
-                    Thread.sleep(200);
+                    Thread.sleep(1000);
                 } catch (InterruptedException e) {
                     throw new RuntimeException(e);
                 }
             }
         });
+        checkServerStatusThread.start();
 
-        try {
-            Thread.sleep(50);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-        thread.start();
+        // Server dispatcher: Check connection of all online players, create new matches.
+        adminRight.addListener((observableValue, old, newVal) -> {
+            if (newVal) {
+                Thread checkConnection = new Thread() {
+                    @Override
+                    public void run() {
+                        super.run();
+                        Hashtable<Integer, String> checkList = new Hashtable<>();
+                        while (true) {
+                            String query = "select * from users where status != 'offline'";
+                            ResultSet resultSet = sqlConnection.getDataQuery(query);
+                            try {
+                                while (resultSet.next()) {
+                                    if (checkList.containsKey(resultSet.getInt("userID"))) {
+                                        if (!resultSet.getString("connectionMessage").equals(checkList.get(resultSet.getInt("userID")))) {
+                                            query = "update users set status = 'offline' where userID = " + resultSet.getInt("userID");
+                                            checkList.put(resultSet.getInt("userID"), "killed");
+                                            sqlConnection.updateQuery(query);
+                                        }
+                                    }
+                                    int num1 = (int) (Math.random() * 100);
+                                    int num2 = (int) (Math.random() * 100);
+                                    String matchHashCode = num1 + "+" + num2;
+                                    checkList.put(resultSet.getInt("userID"), String.valueOf(num1 + num2));
+                                    query = String.format("update users set connectionMessage = '%s' where userID = %d;", matchHashCode, resultSet.getInt("userID"));
+                                    sqlConnection.updateQuery(query);
+                                }
+                            } catch (SQLException e) {
+                                e.printStackTrace();
+                            }
+                            try {
+                                Thread.sleep(10000);
+                            } catch (InterruptedException e) {
+                                throw new RuntimeException(e);
+                            }
+                        }
+                    }
+                };
+                checkConnection.start();
+
+                while (true) {
+                    System.out.println(sqlConnection.getConnection());
+                    String query = "select * from users where status = 'find_opponent';";
+                    ResultSet resultSet = sqlConnection.getDataQuery(query);
+                    List<Integer> userID = new ArrayList<>();
+                    List<Boolean> solvedID = new ArrayList<>();
+                    try {
+                        while (resultSet.next()) {
+                            System.out.println(resultSet.getInt("userID"));
+                            userID.add(resultSet.getInt("userID"));
+                            solvedID.add(false);
+                        }
+                        for (int i = 0; i < userID.size() / 2; i++) {
+                            int userID1 = -1;
+                            int index = -1;
+                            while (index == -1 || solvedID.get(index)) {
+                                index = (int) (Math.random() * userID.size());
+                                System.out.println("index: " + index);
+                                userID1 = userID.get(index);
+                            }
+                            solvedID.set(index, true);
+                            int userID2 = -1;
+                            index = -1;
+                            while (index == -1 || solvedID.get(index) || userID2 == userID1) {
+                                index = (int) (Math.random() * userID.size());
+                                userID2 = userID.get(index);
+                            }
+                            solvedID.set(index, true);
+
+                            String matchHashCode = LocalDateTime.now().toString() + userID1 + userID2 + Math.random() * 10000;
+
+                            int numberOfCharacters = -1;
+                            query = String.format("select count(*) as number_of_character from characters;");
+                            ResultSet characterQueryRs = sqlConnection.getDataQuery(query);
+                            if (characterQueryRs.next())
+                                numberOfCharacters = characterQueryRs.getInt("number_of_character");
+
+                            query = String.format("insert into matches (matchHashCode) values ('%s')", matchHashCode);
+                            sqlConnection.updateQuery(query);
+
+                            query = String.format("select matchID from matches where matchHashCode = '%s';", matchHashCode);
+                            int matchID = 0;
+                            resultSet = sqlConnection.getDataQuery(query);
+                            if (resultSet.next()) {
+                                matchID = resultSet.getInt("matchID");
+                            }
+
+                            query = String.format("insert into matchDetails (matchID, userID, health, damage, speed, xPos, yPos, characterID) VALUES (%d,%d,'%d','%d','%d', '%d', '%d', %d)",
+                                    matchID, userID1, 1000, 1000, 5, 0, 0, (int) (numberOfCharacters * Math.random()) + 1);
+                            sqlConnection.updateQuery(query);
+                            query = String.format("insert into matchDetails (matchID, userID, health, damage, speed, xPos, yPos, characterID) VALUES (%d,%d,'%d','%d','%d', '%d', '%d', %d)",
+                                    matchID, userID2, 1000, 1000, 5, 200, 0, (int) (numberOfCharacters * Math.random()) + 1);
+                            sqlConnection.updateQuery(query);
+
+                            query = String.format("insert into chats (matchID, userID, message) VALUES (%d, %d,'%s')",
+                                    matchID, userID1, "");
+                            sqlConnection.updateQuery(query);
+                            query = String.format("insert into chats (matchID, userID, message) VALUES (%d, %d,'%s')",
+                                    matchID, userID2, "");
+                            sqlConnection.updateQuery(query);
+
+                            query = String.format("update users set status = 'in_game', matchID = %d where userID = %d or userID = %d", matchID, userID1, userID2);
+                            sqlConnection.updateQuery(query);
+                        }
+                    } catch (SQLException e) {
+                        throw new RuntimeException(e);
+                    }
+                    try {
+                        Thread.sleep(2000);
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+            }
+        });
     }
 }

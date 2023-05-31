@@ -103,6 +103,7 @@ public abstract class Character {
     Position fireLineEndPos = null;
 
     public void fire(Character opponent) {
+        opponent.health -= damage;
         fireLineEndPos = opponent.getCenterPos().clone();
         fireLineStartPos = getCenterPos().clone();
         status = Status.FIRING;

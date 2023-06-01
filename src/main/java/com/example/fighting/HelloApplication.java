@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.time.LocalDateTime;
 
 import static com.example.fighting.MainSceneController.runTask;
@@ -46,13 +47,16 @@ public class HelloApplication extends Application {
             String query = String.format("insert into users (deviceID) VALUES ('%s');", hashDeviceID);
             controller.setHashDeviceID(hashDeviceID);
             sqlConnection.updateQuery(query);
-            query = String.format("select userID from users where deviceID = '%s';", hashDeviceID);
-            ResultSet resultSet = sqlConnection.getDataQuery(query);
-            try {
-                if (resultSet.next()) controller.setUserID(resultSet.getInt("userID"));
+
+            try (Statement statement = sqlConnection.getConnection().createStatement()) {
+                query = String.format("select userID from users where deviceID = '%s';", hashDeviceID);
+                try (ResultSet resultSet = statement.executeQuery(query)) {
+                    if (resultSet.next()) controller.setUserID(resultSet.getInt("userID"));
+                }
             } catch (SQLException e) {
                 throw new RuntimeException(e);
             }
+
         }, () -> {
             controller.keepServerStatus();
             runTask(controller::keepConnection, null, null, null);

@@ -31,6 +31,7 @@ import javafx.util.Duration;
 import java.net.URL;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.time.LocalDateTime;
 import java.util.*;
 
@@ -211,12 +212,12 @@ public class MainSceneController implements Initializable {
                         fireBreakTime1.play();
                         if (player.insideRange(opponent)) {
                             player.fire(opponent);
-                            Thread updateAttackThread = new Thread(()->{
-                                String query = String.format("insert into attackDetails (matchID, attackUserID, attackedUserID) VALUES (%d,%d,%d)",matchID,userID,opponentID);
+                            Thread updateAttackThread = new Thread(() -> {
+                                String query = String.format("insert into attackDetails (matchID, attackUserID, attackedUserID) VALUES (%d,%d,%d)", matchID, userID, opponentID);
                                 sqlConnection.updateQuery(query);
 
                                 query = String.format("update matchDetails set health = health - %s where userID = %d",
-                                        String.valueOf(player.damage).replace(',','.'), opponentID);
+                                        String.valueOf(player.damage).replace(',', '.'), opponentID);
                                 sqlConnection.updateQuery(query);
                             });
                             updateAttackThread.start();
@@ -257,47 +258,53 @@ public class MainSceneController implements Initializable {
     void waitForMatching() {
         Platform.runLater(() -> loadingLabel.setText("Finding opponent..."));
         while (matchID == -1) {
-            System.out.println("wait for matching...");
-            String query = "select * from users where userID = " + userID;
-            ResultSet resultSet = sqlConnection.getDataQuery(query);
-            try {
-                if (resultSet.next()) {
-                    matchID = resultSet.getInt("matchID");
+            System.out.println("Wait for matching...");
+            String query = String.format("select * from users where userID = %d", userID);
+            try (Statement checkUserStatement = sqlConnection.getConnection().createStatement();
+                 ResultSet userResultSet = checkUserStatement.executeQuery(query)) {
+                if (userResultSet.next()) {
+                    matchID = userResultSet.getInt("matchID");
                     if (matchID > 0) {
-                        query = "select * from matchDetails where matchID = " + matchID;
-                        resultSet = sqlConnection.getDataQuery(query);
-                        while (resultSet.next()) {
-                            if (resultSet.getInt("userID") == userID) {
-                                playerConfiguration = new CharacterConfiguration(new Position(resultSet.getDouble("xPos"), resultSet.getDouble("yPos")),
-                                        resultSet.getInt("characterID"));
-                            } else {
-                                opponentConfiguration = new CharacterConfiguration(new Position(resultSet.getDouble("xPos"), resultSet.getDouble("yPos")),
-                                        resultSet.getInt("characterID"));
-                                opponentID = resultSet.getInt("userID");
-                                Platform.runLater(() -> opponentIDLabel.setText(String.valueOf(opponentID)));
+                        //Get match detail information.
+                        query = String.format("select * from matchDetails where matchID = %d", matchID);
+                        try (Statement getMatchStatement = sqlConnection.getConnection().createStatement();
+                             ResultSet matchResultSet = getMatchStatement.executeQuery(query)) {
+                            while (matchResultSet.next()) {
+                                Position position = new Position(matchResultSet.getDouble("xPos"), matchResultSet.getDouble("yPos"));
+                                if (matchResultSet.getInt("userID") == userID) {
+                                    playerConfiguration = new CharacterConfiguration(position, matchResultSet.getInt("characterID"));
+                                } else {
+                                    opponentConfiguration = new CharacterConfiguration(position, matchResultSet.getInt("characterID"));
+                                    opponentID = matchResultSet.getInt("userID");
+                                    Platform.runLater(() -> opponentIDLabel.setText(String.valueOf(opponentID)));
+                                }
+                            }
+
+                            //Start initializing match on UI.
+                            initialSetup();
+                            startUpdatingOpponentInfo();
+                            sendMessageButton.setDisable(false);
+                            startGettingMessage();
+
+                            //Get opponent's username.
+                            query = String.format("select username from users where userID = %d", opponentID);
+                            try (Statement getOpponentStatement = sqlConnection.getConnection().createStatement();
+                                 ResultSet opponentResultSet = getOpponentStatement.executeQuery(query)) {
+                                if (opponentResultSet.next()) {
+                                    if (opponentResultSet.getString("username") != null) {
+                                        String opponentName = opponentResultSet.getString("username");
+                                        Platform.runLater(() -> opponentUsernameLabel.setText(opponentName));
+                                    }
+                                }
                             }
                         }
-
-                        initialSetup();
-                        startUpdatingOpponentInfo();
-                        sendMessageButton.setDisable(false);
-                        startGettingMessage();
-
-                        //Get opponent's username.
-                        query = "select * from users where userID = " + opponentID;
-                        resultSet = sqlConnection.getDataQuery(query);
-                        if (resultSet.next()) {
-                            if (resultSet.getString("username") != null) {
-                                String opponentName = resultSet.getString("username");
-                                Platform.runLater(() -> opponentUsernameLabel.setText(opponentName));
-                            }
-                        }
-
                     }
                 }
             } catch (SQLException e) {
-                e.printStackTrace();
+                System.out.println(query);
+                throw new RuntimeException(e);
             }
+
             try {
                 Thread.sleep(200);
             } catch (InterruptedException e) {
@@ -364,8 +371,8 @@ public class MainSceneController implements Initializable {
             }
             while (matchID != -1) {
                 String query = String.format("select message from chats where matchID = %d and userID = %d", matchID, opponentID);
-                ResultSet resultSet = sqlConnection.getDataQuery(query);
-                try {
+                try (Statement statement = sqlConnection.getConnection().createStatement();
+                     ResultSet resultSet = statement.executeQuery(query)) {
                     if (resultSet.next()) {
                         if (!opponentMessage.equals(resultSet.getString("message"))) {
                             String msg = resultSet.getString("message");
@@ -376,8 +383,10 @@ public class MainSceneController implements Initializable {
                         }
                     }
                 } catch (SQLException e) {
+                    System.out.println(query);
                     e.printStackTrace();
                 }
+
                 try {
                     Thread.sleep(200);
                 } catch (InterruptedException e) {
@@ -391,8 +400,8 @@ public class MainSceneController implements Initializable {
         runTask(() -> {
             while (matchID != -1) {
                 String query = String.format("select * from matchDetails where matchID = %d and userID = %d", matchID, opponentID);
-                try {
-                    ResultSet resultSet = sqlConnection.getDataQuery(query);
+                try (Statement statement = sqlConnection.getConnection().createStatement();
+                     ResultSet resultSet = statement.executeQuery(query)) {
                     while (resultSet.next()) {
                         double opponentX = resultSet.getDouble("xPos");
                         double opponentY = resultSet.getDouble("YPos");
@@ -400,12 +409,8 @@ public class MainSceneController implements Initializable {
                             opponent.move(canvas, new Position(opponentX, opponentY));
                     }
                 } catch (SQLException e) {
+                    System.out.println(query);
                     e.printStackTrace();
-                }
-                try {
-                    Thread.sleep(10);
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
                 }
             }
         }, null, null, null);
@@ -413,14 +418,15 @@ public class MainSceneController implements Initializable {
         Thread updateAttackedThread = new Thread(() -> {
             while (matchID != -1) {
                 String query = String.format("select * from attackDetails where matchID = %d and attackedUserID = %d and resolved = 0", matchID, userID);
-                ResultSet resultSet = sqlConnection.getDataQuery(query);
-                try {
+                try (Statement statement = sqlConnection.getConnection().createStatement();
+                     ResultSet resultSet = statement.executeQuery(query)) {
                     while (resultSet.next()) {
                         if (resultSet.getInt("attackUserID") == opponentID)
                             opponent.fire(player);
                         query = String.format("update attackDetails set resolved = 1 where attackID = %d", resultSet.getInt("attackID"));
                         sqlConnection.updateQuery(query);
                     }
+
                 } catch (SQLException e) {
                     throw new RuntimeException(e);
                 }
@@ -432,10 +438,11 @@ public class MainSceneController implements Initializable {
     void keepConnection() {
         while (true) {
             String query = "select * from " +
-                    "    (select count(*) from users where status != 'offline') as t1 " +
+                    "(select count(*) from users where status != 'offline') as t1 " +
                     "cross join (select count(*) from users where status = 'find_opponent') as t2;";
-            ResultSet resultSet = sqlConnection.getDataQuery(query);
-            try {
+
+            try (Statement statement = sqlConnection.getConnection().createStatement();
+                 ResultSet resultSet = statement.executeQuery(query)) {
                 if (resultSet.next()) {
                     int onlineNumber = resultSet.getInt(1);
                     int readyNumber = resultSet.getInt(2);
@@ -447,9 +454,10 @@ public class MainSceneController implements Initializable {
             } catch (SQLException e) {
                 e.printStackTrace();
             }
-            query = "select * from users where userID = " + userID;
-            resultSet = sqlConnection.getDataQuery(query);
-            try {
+
+            query = String.format("select * from users where userID = %d", userID);
+            try (Statement statement = sqlConnection.getConnection().createStatement();
+                 ResultSet resultSet = statement.executeQuery(query)) {
                 if (resultSet.next()) {
                     String connectionMessage = resultSet.getString("connectionMessage");
                     if (connectionMessage != null && !connectionMessage.matches("\\d")) {
@@ -465,6 +473,7 @@ public class MainSceneController implements Initializable {
             } catch (SQLException e) {
                 e.printStackTrace();
             }
+
             try {
                 Thread.sleep(2000);
             } catch (InterruptedException e) {
@@ -495,8 +504,8 @@ public class MainSceneController implements Initializable {
             while (!adminRight.get()) {
                 String query = "select * from users where status != 'offline';";
 
-                try {
-                    ResultSet resultSet = sqlConnection.getDataQuery(query);
+                try (Statement statement = sqlConnection.getConnection().createStatement();
+                     ResultSet resultSet = statement.executeQuery(query)) {
                     int minID = 100000;
                     List<Integer> removeList = new ArrayList<>();
                     while (resultSet.next()) {
@@ -510,8 +519,9 @@ public class MainSceneController implements Initializable {
                         if (minID > currentID) minID = currentID;
                     }
 
+
                     if (minID == userID) {
-                        System.out.println("i a administrator!");
+                        System.out.println("i am administrator!");
                         adminRight.setValue(true);
                     } else {
                         for (Integer integer : removeList) {
@@ -543,16 +553,17 @@ public class MainSceneController implements Initializable {
                         Hashtable<Integer, String> checkList = new Hashtable<>();
                         while (true) {
                             String query = "select * from users where status != 'offline'";
-                            ResultSet resultSet = sqlConnection.getDataQuery(query);
-                            try {
+                            try (Statement statement = sqlConnection.getConnection().createStatement();
+                                 ResultSet resultSet = statement.executeQuery(query)) {
                                 while (resultSet.next()) {
                                     if (checkList.containsKey(resultSet.getInt("userID"))) {
                                         if (!resultSet.getString("connectionMessage").equals(checkList.get(resultSet.getInt("userID")))) {
-                                            query = "update users set status = 'offline' where userID = " + resultSet.getInt("userID");
+                                            query = String.format("update users set status = 'offline' where userID = %d", resultSet.getInt("userID"));
                                             checkList.put(resultSet.getInt("userID"), "killed");
                                             sqlConnection.updateQuery(query);
                                         }
                                     }
+
                                     int num1 = (int) (Math.random() * 100);
                                     int num2 = (int) (Math.random() * 100);
                                     String matchHashCode = num1 + "+" + num2;
@@ -574,23 +585,23 @@ public class MainSceneController implements Initializable {
                 checkConnection.start();
 
                 while (true) {
-                    System.out.println(sqlConnection.getConnection());
-                    String query = "select * from users where status = 'find_opponent';";
-                    ResultSet resultSet = sqlConnection.getDataQuery(query);
                     List<Integer> userID = new ArrayList<>();
                     List<Boolean> solvedID = new ArrayList<>();
-                    try {
+
+                    String query = String.format("select * from users where status = '%s';", "find_opponent");
+                    try (Statement statement = sqlConnection.getConnection().createStatement();
+                         ResultSet resultSet = statement.executeQuery(query)) {
                         while (resultSet.next()) {
                             System.out.println(resultSet.getInt("userID"));
                             userID.add(resultSet.getInt("userID"));
                             solvedID.add(false);
                         }
+
                         for (int i = 0; i < userID.size() / 2; i++) {
                             int userID1 = -1;
                             int index = -1;
                             while (index == -1 || solvedID.get(index)) {
                                 index = (int) (Math.random() * userID.size());
-                                System.out.println("index: " + index);
                                 userID1 = userID.get(index);
                             }
                             solvedID.set(index, true);
@@ -602,23 +613,31 @@ public class MainSceneController implements Initializable {
                             }
                             solvedID.set(index, true);
 
+                            System.out.println("Match: " + userID1 + " vs " + userID2);
                             String matchHashCode = LocalDateTime.now().toString() + userID1 + userID2 + Math.random() * 10000;
 
                             int numberOfCharacters = -1;
                             query = String.format("select count(*) as number_of_character from characters;");
-                            ResultSet characterQueryRs = sqlConnection.getDataQuery(query);
-                            if (characterQueryRs.next())
-                                numberOfCharacters = characterQueryRs.getInt("number_of_character");
 
+                            try (Statement characterQuerystatement = sqlConnection.getConnection().createStatement();
+                                 ResultSet characterQueryRs = characterQuerystatement.executeQuery(query)) {
+                                if (characterQueryRs.next())
+                                    numberOfCharacters = characterQueryRs.getInt("number_of_character");
+                            }
+
+                            System.out.println("Match Hash Code: " + matchHashCode);
                             query = String.format("insert into matches (matchHashCode) values ('%s')", matchHashCode);
                             sqlConnection.updateQuery(query);
 
-                            query = String.format("select matchID from matches where matchHashCode = '%s';", matchHashCode);
                             int matchID = 0;
-                            resultSet = sqlConnection.getDataQuery(query);
-                            if (resultSet.next()) {
-                                matchID = resultSet.getInt("matchID");
+                            query = String.format("select matchID from matches where matchHashCode = '%s';", matchHashCode);
+                            try (Statement matchQuerystatement = sqlConnection.getConnection().createStatement();
+                                 ResultSet matchQueryRs = matchQuerystatement.executeQuery(query)) {
+                                if (matchQueryRs.next()) {
+                                    matchID = matchQueryRs.getInt("matchID");
+                                }
                             }
+                            System.out.println("MatchID = " + matchID);
 
                             query = String.format("insert into matchDetails (matchID, userID, health, damage, speed, xPos, yPos, characterID) VALUES (%d,%d,'%d','%d','%d', '%d', '%d', %d)",
                                     matchID, userID1, 1000, 1000, 5, 0, 0, (int) (numberOfCharacters * Math.random()) + 1);

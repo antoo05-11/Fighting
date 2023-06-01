@@ -33,30 +33,30 @@ public class SQLConnection {
     }
 
     public void configure(InputStream configFile, String serverID) {
-            Scanner scanner = new Scanner(configFile);
-            while (scanner.hasNext()) {
-                String line = scanner.nextLine();
-                if (line.contains(serverID)) {
-                    while (scanner.hasNext()) {
-                        line = scanner.nextLine();
+        Scanner scanner = new Scanner(configFile);
+        while (scanner.hasNext()) {
+            String line = scanner.nextLine();
+            if (line.contains(serverID)) {
+                while (scanner.hasNext()) {
+                    line = scanner.nextLine();
 
-                        if (line.contains("}")) break;
+                    if (line.contains("}")) break;
 
-                        if (line.contains("user:")) {
-                            user = line.substring(line.indexOf("user:") + 5);
-                        } else if (line.contains("password:")) {
-                            password = line.substring(line.indexOf("password:") + 9);
-                        } else if (line.contains("server:")) {
-                            server = line.substring(line.indexOf("server:") + 7);
-                        } else if (line.contains("database:")) {
-                            database = line.substring(line.indexOf("database:") + 9);
-                        } else if (line.contains("port:")) {
-                            port = line.substring(line.indexOf("port:") + 5);
-                        }
+                    if (line.contains("user:")) {
+                        user = line.substring(line.indexOf("user:") + 5);
+                    } else if (line.contains("password:")) {
+                        password = line.substring(line.indexOf("password:") + 9);
+                    } else if (line.contains("server:")) {
+                        server = line.substring(line.indexOf("server:") + 7);
+                    } else if (line.contains("database:")) {
+                        database = line.substring(line.indexOf("database:") + 9);
+                    } else if (line.contains("port:")) {
+                        port = line.substring(line.indexOf("port:") + 5);
                     }
-                    break;
                 }
+                break;
             }
+        }
 
     }
 
@@ -102,27 +102,20 @@ public class SQLConnection {
      * @since 1.0
      */
     public ResultSet getDataQuery(String query) {
-        Statement statement;
-        ResultSet resultSet = null;
-        try {
-            statement = connection.createStatement();
-            resultSet = statement.executeQuery(query);
+        try (Statement statement = connection.createStatement();
+             ResultSet resultSet = statement.executeQuery(query)) {
+            return resultSet;
         } catch (SQLException e) {
-            System.out.println(query);
-            e.printStackTrace();
+            throw new RuntimeException(e);
         }
-        return resultSet;
     }
 
 
     public void updateQuery(String query) {
-        try {
-            Statement statement;
-            statement = connection.createStatement();
+        try (Statement statement = connection.createStatement()) {
             statement.executeUpdate(query);
         } catch (SQLException e) {
-            System.out.println(query);
-            e.printStackTrace();
+            throw new RuntimeException(e);
         }
     }
 }
